@@ -1,0 +1,48 @@
+================================================================
+ 分布式 SQL 数据库: 故障恢复演示
+ 3 节点 Raft 集群, 写 1000 行 -> kill -9 两台 -> 重启 -> 数据全在
+================================================================
+
+### 1. 启动全新 3 节点集群
+started 3 db-nodes, pids: 51614
+51615
+51616
+node 0: role=leader term=1 leader=0 commit=0 log_len=0
+node 1: role=follower term=1 leader=0 commit=0 log_len=0
+node 2: role=follower term=1 leader=0 commit=0 log_len=0
+
+### 2. 建表
+OK (0 rows affected)
+
+### 3. 写入 1000 行 (100 条 INSERT, 每条 10 行)
+1000 rows written
+写入耗时: 29 秒
+
+### 4. 确认三节点各有 1000 行
+node 0: 1000 行
+node 1: 1000 行
+node 2: 1000 行
+
+### 5. kill -9 两台 (含 leader)
+当前 leader = node 0
+kill node 0 (leader) 和 node 1 ...
+killed node 0
+killed node 1
+存活: node 2 (单节点无多数派, 集群暂时不可写 -- 这是 Raft 的设计, 不是 bug)
+
+### 6. 重启被 kill 的两台, 等它们追上日志
+restarted node 0 (pid 54090)
+restarted node 1 (pid 54104)
+等待选主与日志追赶...
+node 0: role=follower term=25 leader=2 commit=101 log_len=101
+node 1: role=follower term=25 leader=2 commit=101 log_len=101
+node 2: role=leader term=25 leader=2 commit=101 log_len=101
+
+### 7. 验证: 三节点数据全在, 1000 行零丢失
+node 0: ✅ 1000 行, 首尾行内容正确
+node 1: ✅ 1000 行, 首尾行内容正确
+node 2: ✅ 1000 行, 首尾行内容正确
+
+================================================================
+ 演示成功: kill -9 两台后重启, 1000 行数据零丢失 ✅
+================================================================
